@@ -16,11 +16,12 @@
 #include <QMessageBox>
 #include <tf2_ros/qos.hpp>
 #include <rosbag2_cpp/types.hpp>
+#include <rosgraph_msgs/msg/clock.hpp>
 #include <rmw/rmw.h>
 #include <rmw/types.h>
 #include "publisher_select_dialog.h"
 
-TopicPublisherROS2::TopicPublisherROS2() :  _node(nullptr), _enabled(false)
+TopicPublisherROS2::TopicPublisherROS2() :  _node(nullptr), _enabled(false), _publish_clock(true)
 {
   _context = std::make_shared<rclcpp::Context>();
   _context->init(0, nullptr);
@@ -121,11 +122,21 @@ void TopicPublisherROS2::setEnabled(bool to_enable)
     }
 
     _previous_play_index = std::numeric_limits<int>::max();
+
+    if (_publish_clock)
+    {
+      _clock_publisher = _node->create_publisher<rosgraph_msgs::msg::Clock>("/clock", 1);
+    }
+    else
+    {
+      _clock_publisher.reset();
+    }
   }
   else
   {
     _node.reset();
     _publishers.clear();
+    _clock_publisher.reset();
     _tf_broadcaster.reset();
     _tf_static_broadcaster.reset();
   }
@@ -143,7 +154,7 @@ void TopicPublisherROS2::filterDialog()
 
   PublisherSelectDialog *dialog =  new PublisherSelectDialog();
   dialog->setAttribute(Qt::WA_DeleteOnClose);
-  dialog->ui()->radioButtonClock->setHidden(true);
+  // dialog->ui()->radioButtonClock->setHidden(true);
   dialog->ui()->radioButtonHeaderStamp->setHidden(true);
 
   std::map<std::string, QCheckBox*> checkbox;
@@ -180,6 +191,18 @@ void TopicPublisherROS2::filterDialog()
 
     updatePublishers();
   }
+
+  _publish_clock = dialog->ui()->radioButtonClock->isChecked();
+
+  if (_publish_clock)
+  {
+    _clock_publisher = _node->create_publisher<rosgraph_msgs::msg::Clock>("/clock", 1);
+  }
+  else
+  {
+    _clock_publisher.reset();
+  }
+
 }
 
 constexpr  long NSEC_PER_SEC = 1000000000;
@@ -346,6 +369,20 @@ void TopicPublisherROS2::updateState(double current_time)
       publisher_it->second->publish(msg_instance->serialized_data);
     }
   }
+
+  if (_publish_clock)
+  {
+    rosgraph_msgs::msg::Clock clock;
+    try
+    {
+      // clock.clock.
+    }
+    catch(const std::exception& e)
+    {
+      std::cerr << e.what() << '\n';
+    }
+
+  }
 }
 
 void TopicPublisherROS2::play(double current_time)
@@ -385,6 +422,15 @@ void TopicPublisherROS2::play(double current_time)
         }
 
         publisher_it->second->publish(msg_instance->serialized_data);
+
+        if (_publish_clock)
+        {
+          rosgraph_msgs::msg::Clock clock;
+          uint64_t clock_time_ns = msg_instance->time_stamp;
+          clock.clock.sec = (int32_t)(RCL_NS_TO_S(clock_time_ns));
+          clock.clock.nanosec = (uint32_t)(clock_time_ns - RCL_S_TO_NS(clock.clock.sec));
+          _clock_publisher->publish(clock);
+        }
       }
     }
     _previous_play_index = current_index;

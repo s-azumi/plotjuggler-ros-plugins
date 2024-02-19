@@ -16,6 +16,7 @@
 
 #include <PlotJuggler/statepublisher_base.h>
 #include "ros_parsers/ros2_parser.h"
+#include <rosgraph_msgs/msg/clock.hpp>
 #include "generic_publisher.h"
 
 using MessageRefPtr = std::shared_ptr<rosbag2_storage::SerializedBagMessage>;
@@ -61,11 +62,14 @@ private:
   std::shared_ptr<rclcpp::Node> _node;
 
   bool _enabled;
+  bool _publish_clock;
 
   std::shared_ptr<tf2_ros::TransformBroadcaster> _tf_broadcaster;
   std::shared_ptr<tf2_ros::StaticTransformBroadcaster> _tf_static_broadcaster;
 
   std::unordered_map<std::string, std::shared_ptr<GenericPublisher>> _publishers;
+  // std::shared_ptr<GenericPublisher> _clock_publisher;
+  rclcpp::Publisher<rosgraph_msgs::msg::Clock>::SharedPtr _clock_publisher;
 
   QAction* _select_topics_to_publish;
 
